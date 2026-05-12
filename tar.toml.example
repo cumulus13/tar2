@@ -1,0 +1,48 @@
+# tar2 configuration file
+# Place this at one of:
+#   Linux/macOS : ~/.config/tar/tar.toml
+#   Windows     : %APPDATA%\tar\tar.toml
+#   Or alongside the executable as: tar.toml / .tar.toml
+
+[colors]
+# Colors accept hex (#RRGGBB) or named values:
+#   black, red, green, yellow, blue, magenta, cyan, white
+#   bright_black, bright_red, bright_green, bright_yellow,
+#   bright_blue, bright_magenta, bright_cyan, bright_white
+
+dir    = "#00BFFF"    # Directories
+file   = "white"      # Regular files
+link   = "#FF69B4"    # Symbolic links
+exec   = "#00FF7F"    # Executables
+header = "#FFD700"    # Archive name / section headers
+size   = "#00FFFF"    # File sizes
+date   = "#DDA0DD"    # Modification timestamps
+perm   = "#FFA500"    # Permission strings (drwxr-xr-x)
+tree   = "#808080"    # Tree branch characters
+warn   = "#FFFF00"    # Warning messages
+error  = "#FF4444"    # Error messages
+ok     = "#44FF44"    # Success messages
+
+[emojis]
+dir     = "📁"
+file    = "📄"
+link    = "🔗"
+archive = "📦"
+image   = "🖼️"
+video   = "🎬"
+audio   = "🎵"
+doc     = "📝"
+code    = "💻"
+ok      = "✅"
+warn    = "⚠️"
+error   = "❌"
+
+[display]
+emoji           = true              # Show emoji icons
+colors          = true              # Enable colored output
+tree_depth      = 0                 # Default tree depth (0 = unlimited)
+human_readable  = true              # Human-readable sizes (1.2 KiB, etc.)
+verbose         = false             # Verbose by default
+progress_style  = "bar"             # "bar" | "spinner" | "none"
+date_format     = "%Y-%m-%d %H:%M"  # strftime format string
+tree_style      = "unicode"         # "unicode" | "ascii"

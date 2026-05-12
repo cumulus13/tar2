@@ -1,0 +1,14 @@
+/target
+
+# Ignore Sublime Text project files
+*.sublime-*
+
+# Added entries (5 items)
+target/
+*.exe
+*.bak
+src/tmp*
+PLAN.md
+
+# Added entries (1 items)
+tar.toml
