@@ -6,6 +6,8 @@
 > **Author:** Hadi Cahyadi <cumulus13@gmail.com>  
 > **Homepage:** https://github.com/cumulus13/tar2
 
+[![Screenshot](https://raw.githubusercontent.com/cumulus13/tar2/master/screenshot.png)](https://raw.githubusercontent.com/cumulus13/tar2/master/screenshot.png)
+
 ---
 
 ## ✨ Features
