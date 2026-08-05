@@ -295,7 +295,8 @@ pub fn extract(opts: ExtractOptions) -> Result<usize> {
             None => continue,
         };
 
-        if !opts.filter.matches(&stripped) { continue; }
+        let entry_is_dir = entry.header().entry_type().is_dir();
+        if !opts.filter.matches_typed(&stripped, entry_is_dir) { continue; }
 
         let dest_path = opts.dest.join(&stripped);
 
@@ -351,9 +352,9 @@ pub fn list_entries(archive: &Path, compression: Compression, filter: &FileFilte
         let entry = entry?;
         let raw_path = entry.path()?.into_owned();
 
-        if !filter.matches(&raw_path) { continue; }
-
         let header = entry.header();
+        if !filter.matches_typed(&raw_path, header.entry_type().is_dir()) { continue; }
+
         let size = header.size().unwrap_or(0);
 
         let mtime = header.mtime().ok().and_then(|secs| {

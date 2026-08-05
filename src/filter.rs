@@ -3,11 +3,14 @@ use glob::Pattern;
 use regex::Regex;
 use std::path::Path;
 
+use crate::ignorefile::IgnoreSet;
+
 pub struct FileFilter {
     include_globs: Vec<Pattern>,
     exclude_globs: Vec<Pattern>,
     exclude_regex: Vec<Regex>,
     include_regex: Vec<Regex>,
+    ignore: Option<IgnoreSet>,
 }
 
 impl FileFilter {
@@ -16,6 +19,16 @@ impl FileFilter {
         exclude_globs: &[String],
         include_re: &[String],
         exclude_re: &[String],
+    ) -> Result<Self> {
+        Self::with_ignore(include_globs, exclude_globs, include_re, exclude_re, None)
+    }
+
+    pub fn with_ignore(
+        include_globs: &[String],
+        exclude_globs: &[String],
+        include_re: &[String],
+        exclude_re: &[String],
+        ignore: Option<IgnoreSet>,
     ) -> Result<Self> {
         let mut ig = Vec::new();
         for p in include_globs {
@@ -33,10 +46,32 @@ impl FileFilter {
         for r in exclude_re {
             eregex.push(Regex::new(r).map_err(|e| anyhow::anyhow!("Invalid regex '{}': {}", r, e))?);
         }
-        Ok(Self { include_globs: ig, exclude_globs: eg, exclude_regex: eregex, include_regex: iregex })
+        Ok(Self { include_globs: ig, exclude_globs: eg, exclude_regex: eregex, include_regex: iregex, ignore })
     }
 
+    /// Returns the ignore files that were actually loaded (if any), so callers
+    /// can report which `.gitignore`-style files ended up being honored.
+    pub fn ignore_sources(&self) -> &[std::path::PathBuf] {
+        self.ignore.as_ref().map(|i| i.sources.as_slice()).unwrap_or(&[])
+    }
+
+    /// Convenience wrapper that infers `is_dir` from the filesystem. Suitable
+    /// for real on-disk paths (create/append/update). For entries coming from
+    /// inside an archive (extract/list), prefer `matches_typed` and pass the
+    /// entry's actual type, since the path won't exist on disk yet.
     pub fn matches(&self, path: &Path) -> bool {
+        self.matches_typed(path, path.is_dir())
+    }
+
+    pub fn matches_typed(&self, path: &Path, is_dir: bool) -> bool {
+        // Ignore-file rules (.gitignore, .dockerignore, .tarignore, .tar2ignore, ...)
+        // act as another exclusion source and take priority, same as a plain --exclude.
+        if let Some(ig) = &self.ignore {
+            if ig.is_ignored(path, is_dir) {
+                return false;
+            }
+        }
+
         let path_str = path.to_string_lossy();
         let fname = path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
 

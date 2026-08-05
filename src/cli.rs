@@ -99,6 +99,16 @@ pub struct Cli {
     #[arg(long = "include-regex", value_name = "REGEX", action = ArgAction::Append)]
     pub include_regex: Vec<String>,
 
+    /// Load exclusion patterns from an ignore file (gitignore syntax). Repeatable.
+    #[arg(long = "ignore-file", value_name = "FILE", action = ArgAction::Append)]
+    pub ignore_file: Vec<PathBuf>,
+
+    /// Do not auto-detect standard ignore files (.gitignore, .dockerignore,
+    /// .tarignore, .tar2ignore, .npmignore, .hgignore, .ignore) alongside the
+    /// working directory / source paths
+    #[arg(long = "no-auto-ignore")]
+    pub no_auto_ignore: bool,
+
     /// Compression level (1-9 or 1-22 for zstd)
     #[arg(long, value_name = "LEVEL")]
     pub compression_level: Option<u32>,
@@ -163,6 +173,14 @@ pub enum Commands {
         /// Glob patterns to exclude
         #[arg(long = "exclude", value_name = "PATTERN", action = ArgAction::Append)]
         exclude: Vec<String>,
+        /// Load exclusion patterns from an ignore file (gitignore syntax). Repeatable.
+        #[arg(long = "ignore-file", value_name = "FILE", action = ArgAction::Append)]
+        ignore_file: Vec<PathBuf>,
+        /// Do not auto-detect standard ignore files (.gitignore, .dockerignore,
+        /// .tarignore, .tar2ignore, .npmignore, .hgignore, .ignore) in the
+        /// current directory
+        #[arg(long = "no-auto-ignore")]
+        no_auto_ignore: bool,
     },
 
     /// Get or set configuration values

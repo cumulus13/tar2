@@ -1,6 +1,6 @@
 [package]
 name = "tar2"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["Hadi Cahyadi <cumulus13@gmail.com>"]
 description = "A feature-rich tar replacement with tree view, colors, emoji, and cross-platform config"
@@ -34,6 +34,7 @@ regex = "1"
 once_cell = "1"
 ctrlc = "3"
 clap-version-flag = "1.0.5"
+ignore = "0.4"
 
 [dependencies.indexmap]
 version = "=2.2.6"

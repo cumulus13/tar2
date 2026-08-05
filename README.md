@@ -23,6 +23,7 @@
 | **Platform config paths** | Searches standard OS paths + exe directory |
 | **Pattern filtering** | `--include`/`--exclude` (glob) + `--include-regex`/`--exclude-regex` |
 | **Exclude from file** | `--exclude-from FILE` (one pattern per line, `#` comments) |
+| **Ignore files** | Auto-detects `.gitignore`, `.dockerignore`, `.tarignore`, `.tar2ignore`, etc. for pack/list/extract/append/tree |
 | **Strip components** | `--strip-components N` on extract |
 | **Progress spinner** | Visual feedback during create/extract |
 | **Verify/test** | `-W` / `--test` — integrity check |
@@ -205,6 +206,47 @@ Compression is **auto-detected** from the archive filename if no flag is given.
 | `--include-regex RE` | Include by regex |
 | `--exclude-regex RE` | Exclude by regex |
 | `--exclude-from FILE` | Read exclude patterns from file |
+| `--ignore-file FILE` | Load exclusion patterns from an ignore file (gitignore syntax, repeatable) |
+| `--no-auto-ignore` | Disable auto-detection of standard ignore files |
+
+### 🙈 Ignore files
+
+`tar2` understands `.gitignore`-style pattern files and applies them automatically
+as extra exclusion rules — for **create/pack (`-c`)**, **extract (`-x`)**,
+**list (`-t`)**, **append/update (`-r`/`-u`)**, and the **`tree`** subcommand.
+
+On each run, `tar2` looks directly inside the current directory (and, for
+`-c`/`-r`/`-u`, inside each source directory) for any of the following, in
+priority order, and loads every one it finds:
+
+```
+.tar2ignore  .tarignore  .gitignore  .dockerignore  .npmignore  .hgignore  .ignore
+```
+
+All of them use the same pattern syntax as `.gitignore` — including `#` comments,
+`!negation`, and `dir/`-only rules. When one or more is found, `tar2` prints
+which files it used:
+
+```
+Using ignore rules from: /path/to/.gitignore, /path/to/.dockerignore
+```
+
+To turn this off entirely, pass `--no-auto-ignore`. To load extra patterns from
+a file that isn't one of the standard names, pass `--ignore-file path/to/file`
+(repeatable). Ignore rules combine with `--exclude`/`--include` — an ignored
+path is dropped regardless of other filters.
+
+```bash
+# Pack a project dir, respecting its .gitignore/.dockerignore automatically
+tar -czf project.tar.gz project/
+
+# Ignore rules also apply when listing or extracting
+tar -tf project.tar.gz
+tar -xf project.tar.gz -C /tmp/out
+
+# Use a one-off ignore file instead of auto-detected ones
+tar -czf project.tar.gz --no-auto-ignore --ignore-file .buildignore project/
+```
 
 ### Other options
 | Flag | Description |

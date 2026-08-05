@@ -9,6 +9,7 @@ mod cli;
 mod colors;
 mod config;
 mod filter;
+mod ignorefile;
 mod tree;
 
 use anyhow::{Context, Result};
@@ -21,6 +22,7 @@ use cli::{Cli, Commands, Compression};
 use colors::Painter;
 use config::{default_config_path, load_config, save_config};
 use filter::FileFilter;
+use ignorefile::IgnoreSetBuilder;
 use tree::{TreeOptions, build_tree, render_flat, render_tree};
 
 fn main() {
@@ -85,6 +87,13 @@ fn run() -> Result<()> {
 
     let compression = resolve_compression(&args, &archive_path);
 
+    // Change directory (if requested) before doing any path-relative work below,
+    // so ignore-file auto-detection and relative sources line up with the -C dir.
+    if let Some(ref dir) = args.directory {
+        std::env::set_current_dir(dir)
+            .with_context(|| format!("Cannot chdir to: {}", dir.display()))?;
+    }
+
     let mut excludes = args.exclude.clone();
     if let Some(ref from_file) = args.exclude_from {
         let content = std::fs::read_to_string(from_file)
@@ -109,18 +118,41 @@ fn run() -> Result<()> {
         v
     };
 
-    let filter = FileFilter::new(&includes, &excludes, &args.include_regex, &args.exclude_regex)?;
+    // Ignore-file support: .gitignore, .dockerignore, .tarignore, .tar2ignore,
+    // .npmignore, .hgignore, .ignore. Applies as an extra exclusion source for
+    // create/pack (-c), extract (-x), list (-t), append/update (-r/-u), and test.
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut ignore_builder = IgnoreSetBuilder::new(&cwd);
+    if !args.no_auto_ignore {
+        ignore_builder.autodetect(&cwd)?;
+        if args.create || args.append || args.update {
+            for source in &args.files {
+                let resolved = if source.is_relative() { cwd.join(source) } else { source.clone() };
+                if resolved.is_dir() {
+                    ignore_builder.autodetect(&resolved)?;
+                }
+            }
+        }
+    }
+    for f in &args.ignore_file {
+        ignore_builder.add_file(f)?;
+    }
+    let ignore_set = ignore_builder.build()?;
+
+    let filter = FileFilter::with_ignore(&includes, &excludes, &args.include_regex, &args.exclude_regex, ignore_set)?;
+    if !filter.ignore_sources().is_empty() {
+        let names: Vec<String> = filter.ignore_sources()
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect();
+        eprintln!("{} {}", painter.header("Using ignore rules from:"), painter.file(&names.join(", ")));
+    }
 
     let sources: Vec<PathBuf> = if args.create || args.append || args.update {
         args.files.clone()
     } else {
         Vec::new()
     };
-
-    if let Some(ref dir) = args.directory {
-        std::env::set_current_dir(dir)
-            .with_context(|| format!("Cannot chdir to: {}", dir.display()))?;
-    }
 
     let verbose = args.verbose > 0 || cfg.display.verbose;
     let show_progress = args.progress && cfg.display.progress_style != "none";
@@ -227,7 +259,7 @@ fn dispatch_subcommand(
 ) -> Result<()> {
     let painter = Painter::new(cfg, colors_on);
     match cmd {
-        Commands::Tree { archive, depth, size, time, perm, ascii, include, exclude } => {
+        Commands::Tree { archive, depth, size, time, perm, ascii, include, exclude, ignore_file, no_auto_ignore } => {
             cmd_tree(TreeArgs {
                 archive,
                 depth: *depth,
@@ -237,6 +269,8 @@ fn dispatch_subcommand(
                 ascii: *ascii,
                 include,
                 exclude,
+                ignore_file,
+                no_auto_ignore: *no_auto_ignore,
             }, cfg, &painter)
         }
         Commands::Config { action } => {
@@ -254,12 +288,25 @@ struct TreeArgs<'a> {
     ascii: bool,
     include: &'a [String],
     exclude: &'a [String],
+    ignore_file: &'a [PathBuf],
+    no_auto_ignore: bool,
 }
 
 fn cmd_tree(args: TreeArgs, cfg: &config::Config, painter: &Painter) -> Result<()> {
-    let TreeArgs { archive, depth, show_size, show_time, show_perm, ascii, include, exclude } = args;
+    let TreeArgs { archive, depth, show_size, show_time, show_perm, ascii, include, exclude, ignore_file, no_auto_ignore } = args;
     let compression = archive::detect_compression(archive);
-    let filter = FileFilter::new(include, exclude, &[], &[])?;
+
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut ignore_builder = IgnoreSetBuilder::new(&cwd);
+    if !no_auto_ignore {
+        ignore_builder.autodetect(&cwd)?;
+    }
+    for f in ignore_file {
+        ignore_builder.add_file(f)?;
+    }
+    let ignore_set = ignore_builder.build()?;
+
+    let filter = FileFilter::with_ignore(include, exclude, &[], &[], ignore_set)?;
     let entries = archive::list_entries(archive, compression, &filter)?;
 
     let eff_depth = if depth > 0 { depth } else { cfg.display.tree_depth };
