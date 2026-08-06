@@ -25,87 +25,225 @@ jobs:
       - run: cargo test --all-features
 
   # ── Multi-platform release builds ───────────────────────────
+  # Mirrors the target matrix of our Go projects (linux/android across
+  # amd64, 386, arm variants, mips family, ppc64le, riscv64, s390x, plus
+  # darwin and windows). Anything that isn't natively buildable on the
+  # host runner goes through `cross`, which provides a ready-made
+  # cross-gcc + sysroot per target so bzip2-sys/xz2-sys/zstd-sys (our C
+  # dependencies) compile without extra setup.
   build:
+    name: Build (${{ matrix.suffix }})
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
+    continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Windows
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            artifact: tar2-windows-x86_64.exe
-
-          # macOS Intel
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            artifact: tar2-macos-x86_64
-
-          # macOS Apple Silicon
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            artifact: tar2-macos-aarch64
-
-          # Linux x86_64 (static musl)
+          # ── Linux x86 / x64 ───────────────────────────────────────────────
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            artifact: tar2-linux-x86_64
+            suffix: linux_amd64
+            ext: ""
+            use_cross: false
 
-          # Linux ARM64
+          - target: i686-unknown-linux-musl
+            os: ubuntu-latest
+            suffix: linux_386
+            ext: ""
+            use_cross: true
+
+          # ── Linux ARM / Raspberry Pi ──────────────────────────────────────
+          - target: arm-unknown-linux-gnueabihf
+            os: ubuntu-latest
+            suffix: linux_armv6
+            ext: ""
+            use_cross: true
+
+          - target: armv7-unknown-linux-gnueabihf
+            os: ubuntu-latest
+            suffix: linux_armv7
+            ext: ""
+            use_cross: true
+
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
-            artifact: tar2-linux-aarch64
+            suffix: linux_arm64
+            ext: ""
+            use_cross: true
+
+          # ── Android CLI (runs on Termux / Kali NetHunter) ──────────────────
+          - target: armv7-linux-androideabi
+            os: ubuntu-latest
+            suffix: android_armv7
+            ext: ""
+            use_cross: true
+
+          - target: aarch64-linux-android
+            os: ubuntu-latest
+            suffix: android_arm64
+            ext: ""
+            use_cross: true
+
+          # ── Linux MIPS (Routers / OpenWRT) ────────────────────────────────
+          # NOTE: upstream Rust demoted all MIPS targets from tier 2 to tier 3
+          # (LLVM isel bugs), so these no longer ship a prebuilt std -- they're
+          # built with `-Z build-std` on nightly and are best-effort. A failure
+          # here is marked `experimental` so it doesn't block the release.
+          - target: mips-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: linux_mips
+            ext: ""
+            use_cross: true
+            build_std: true
+            experimental: true
+
+          - target: mipsel-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: linux_mipsle
+            ext: ""
+            use_cross: true
+            build_std: true
+            experimental: true
+
+          - target: mips64-unknown-linux-gnuabi64
+            os: ubuntu-latest
+            suffix: linux_mips64
+            ext: ""
+            use_cross: true
+            build_std: true
+            experimental: true
+
+          - target: mips64el-unknown-linux-gnuabi64
+            os: ubuntu-latest
+            suffix: linux_mips64le
+            ext: ""
+            use_cross: true
+            build_std: true
+            experimental: true
+
+          # ── Linux Other Architectures ─────────────────────────────────────
+          - target: powerpc64le-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: linux_ppc64le
+            ext: ""
+            use_cross: true
+
+          - target: riscv64gc-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: linux_riscv64
+            ext: ""
+            use_cross: true
+
+          - target: s390x-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: linux_s390x
+            ext: ""
+            use_cross: true
+
+          # ── macOS / Darwin ────────────────────────────────────────────────
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            suffix: darwin_amd64
+            ext: ""
+            use_cross: false
+
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            suffix: darwin_arm64
+            ext: ""
+            use_cross: false
+
+          # ── Windows ───────────────────────────────────────────────────────
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            suffix: windows_amd64
+            ext: ".exe"
+            use_cross: false
+
+          - target: i686-pc-windows-msvc
+            os: windows-latest
+            suffix: windows_386
+            ext: ".exe"
+            use_cross: false
+
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            suffix: windows_arm64
+            ext: ".exe"
+            use_cross: false
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract version
+        id: ver
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
       - uses: dtolnay/rust-toolchain@stable
+        if: '!matrix.build_std'
         with:
           targets: ${{ matrix.target }}
+
+      # Tier-3 MIPS targets have no prebuilt std, so rebuild it from source
+      # via nightly + `-Z build-std` instead of `rustup target add`.
+      - uses: dtolnay/rust-toolchain@nightly
+        if: matrix.build_std
+        with:
+          targets: ${{ matrix.target }}
+          components: rust-src
 
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
-      # musl linker on Linux
+      # musl linker for the native (non-cross) x86_64 musl build
       - name: Install musl tools
-        if: contains(matrix.target, 'musl')
+        if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y musl-tools
 
-      # Cross-compile ARM64 Linux
+      # Extra Windows targets need their std/linker components added
+      - name: Add Windows target
+        if: runner.os == 'Windows' && matrix.target != 'x86_64-pc-windows-msvc'
+        run: rustup target add ${{ matrix.target }}
+
       - name: Install cross
-        if: matrix.target == 'aarch64-unknown-linux-musl'
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        if: matrix.use_cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build (cross, build-std)
+        if: matrix.use_cross && matrix.build_std
+        run: cross +nightly build --release --target ${{ matrix.target }} -Z build-std=std,panic_abort
 
       - name: Build (cross)
-        if: matrix.target == 'aarch64-unknown-linux-musl'
+        if: matrix.use_cross && !matrix.build_std
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Build (cargo)
-        if: matrix.target != 'aarch64-unknown-linux-musl'
+        if: '!matrix.use_cross'
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Rename binary (Unix)
-        if: runner.os != 'Windows'
+      - name: Package binary
+        shell: bash
         run: |
-          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }} \
-             ${{ matrix.artifact }}
-
-      - name: Rename binary (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          Copy-Item "target\${{ matrix.target }}\release\${{ env.BINARY_NAME }}.exe" `
-                    "${{ matrix.artifact }}"
+          mkdir -p dist
+          VERSION="${{ steps.ver.outputs.VERSION }}"
+          SRC="target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}${{ matrix.ext }}"
+          OUT="dist/${{ env.BINARY_NAME }}_${VERSION}_${{ matrix.suffix }}${{ matrix.ext }}"
+          cp "$SRC" "$OUT"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: binary-${{ matrix.suffix }}
+          path: dist/*
+          retention-days: 1
 
   # ── GitHub Release ───────────────────────────────────────────
   release:
@@ -115,35 +253,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract version
+        id: ver
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          echo "=== Checksums ==="
+          cat checksums.txt
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          name: v${{ steps.ver.outputs.VERSION }}
+          tag_name: ${{ github.ref }}
           generate_release_notes: true
+          files: |
+            dist/*
           body: |
-            ## Tar2 ${{ github.ref_name }}
+            ## Tar2 ${{ steps.ver.outputs.VERSION }}
 
-            ### Download
-            | Platform | File |
-            |----------|------|
-            | Windows x86_64 | `tar2-windows-x86_64.exe` |
-            | macOS Apple Silicon | `tar2-macos-aarch64` |
-            | macOS Intel | `tar2-macos-x86_64` |
-            | Linux x86_64 | `tar2-linux-x86_64` |
-            | Linux ARM64 | `tar2-linux-aarch64` |
+            Prebuilt binaries below. Filenames follow
+            `tar2_${{ steps.ver.outputs.VERSION }}_<platform>`.
+            Verify a download against `checksums.txt` with `sha256sum -c`.
 
-            ### Quick start
+            ### Platforms
+            | Platform | Suffix |
+            |----------|--------|
+            | Linux amd64 / 386 | `linux_amd64`, `linux_386` |
+            | Linux ARM (v6, v7, arm64) | `linux_armv6`, `linux_armv7`, `linux_arm64` |
+            | Android (Termux / NetHunter, armv7/arm64) | `android_armv7`, `android_arm64` |
+            | Linux MIPS family -- best-effort, Tier 3 upstream | `linux_mips`, `linux_mipsle`, `linux_mips64`, `linux_mips64le` |
+            | Linux ppc64le / riscv64 / s390x | `linux_ppc64le`, `linux_riscv64`, `linux_s390x` |
+            | macOS Intel / Apple Silicon | `darwin_amd64`, `darwin_arm64` |
+            | Windows amd64 / 386 / arm64 | `windows_amd64`, `windows_386`, `windows_arm64` |
+
             ```bash
-            # Linux/macOS — make executable
-            chmod +x tar2-*
-            ./tar2-linux-x86_64
+            # Linux/macOS -- make executable
+            chmod +x tar2_*
+            ./tar2_${{ steps.ver.outputs.VERSION }}_linux_amd64
 
-            # Windows — just run it
-            tar2-windows-x86_64.exe
+            # Windows -- just run it
+            tar2_${{ steps.ver.outputs.VERSION }}_windows_amd64.exe
             ```
 
   publish:
@@ -155,6 +313,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Publish
-        run: cargo publish --allow-dirty
+        run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
