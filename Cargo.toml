@@ -1,6 +1,6 @@
 [package]
 name = "tar2"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 authors = ["Hadi Cahyadi <cumulus13@gmail.com>"]
 description = "A feature-rich tar replacement with tree view, colors, emoji, and cross-platform config"

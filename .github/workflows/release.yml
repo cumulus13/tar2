@@ -188,12 +188,15 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Tier-3 MIPS targets have no prebuilt std, so rebuild it from source
-      # via nightly + `-Z build-std` instead of `rustup target add`.
+      # Tier-3 MIPS targets have no prebuilt std component at all (not even
+      # a downloadable one), so we build it from source via `-Z build-std`.
+      # Do NOT pass `targets:` here -- that makes rustup try to *download* a
+      # prebuilt rust-std for the target, which doesn't exist and fails the
+      # toolchain install outright. Only `rust-src` is needed; the target
+      # itself is only ever passed to `cargo build --target`.
       - uses: dtolnay/rust-toolchain@nightly
         if: matrix.build_std
         with:
-          targets: ${{ matrix.target }}
           components: rust-src
 
       - uses: Swatinem/rust-cache@v2
@@ -249,10 +252,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: |
-      always() &&
-      startsWith(github.ref, 'refs/tags/') &&
-      !cancelled()
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
 
@@ -264,16 +264,6 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-
-      - name: Check for built artifacts
-        run: |
-          mkdir -p dist
-          COUNT=$(find dist -type f | wc -l)
-          echo "Found $COUNT binaries in dist/"
-          if [ "$COUNT" -eq 0 ]; then
-            echo "::error::No binaries were successfully built. Skipping release creation."
-            exit 1
-          fi
 
       - name: Generate checksums
         run: |
@@ -321,7 +311,6 @@ jobs:
     name: Publish to crates.io
     needs: release
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
