@@ -265,13 +265,33 @@ tar -czf project.tar.gz --no-auto-ignore --ignore-file .buildignore project/
 
 ---
 
+## 📦 Prebuilt Binaries
+
+Every tagged release publishes binaries for a broad platform matrix — see the
+[Releases page](https://github.com/cumulus13/tar2/releases). Filenames follow
+`tar2_<version>_<platform>`:
+
+| Platform | Suffix |
+|----------|--------|
+| Linux amd64 / 386 | `linux_amd64`, `linux_386` |
+| Linux ARM (v6, v7, arm64) | `linux_armv6`, `linux_armv7`, `linux_arm64` |
+| Android (Termux / NetHunter, armv7/arm64) | `android_armv7`, `android_arm64` |
+| Linux MIPS family — best-effort, Tier 3 upstream | `linux_mips`, `linux_mipsle`, `linux_mips64`, `linux_mips64le` |
+| Linux ppc64le / riscv64 / s390x | `linux_ppc64le`, `linux_riscv64`, `linux_s390x` |
+| macOS Intel / Apple Silicon | `darwin_amd64`, `darwin_arm64` |
+| Windows amd64 / 386 / arm64 | `windows_amd64`, `windows_386`, `windows_arm64` |
+
+Verify a download against the release's `checksums.txt` with `sha256sum -c`.
+
+---
+
 ## 🔨 Building
 
 ```bash
 git clone https://github.com/cumulus13/tar2
 cd tar2
 cargo build --release
-# Binary at: target/release/tar
+# Binary at: target/release/tar2
 ```
 
 **Requirements:** Rust 1.75+
@@ -280,7 +300,7 @@ Install globally:
 ```bash
 cargo install --path .
 # or
-cp target/release/tar ~/.local/bin/tar
+cp target/release/tar2 ~/.local/bin/tar2
 ```
 
 ---

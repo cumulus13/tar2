@@ -1,0 +1,9 @@
+# Per-target overrides for `cross`.
+#
+# aarch64-linux-android: the pinned cross-rs release image (0.2.5) ships an
+# old NDK gcc-4.9 shim that fails to link with "cannot find -lunwind"
+# (cross-rs/cross#1222, rust-lang/rust#110786). armv7-linux-androideabi is
+# unaffected -- only the arm64 Android image has this bug. The `:edge` image
+# (built from cross-rs main) has it fixed.
+[target.aarch64-linux-android]
+image = "ghcr.io/cross-rs/aarch64-linux-android:edge"
