@@ -139,7 +139,7 @@ fn run() -> Result<()> {
     }
     let ignore_set = ignore_builder.build()?;
 
-    let filter = FileFilter::with_ignore(&includes, &excludes, &args.include_regex, &args.exclude_regex, ignore_set)?;
+    let filter = FileFilter::with_ignore(&includes, &excludes, &args.include_regex, &args.exclude_regex, ignore_set, args.keep_ignore_files)?;
     if !filter.ignore_sources().is_empty() {
         let names: Vec<String> = filter.ignore_sources()
             .iter()
@@ -306,7 +306,7 @@ fn cmd_tree(args: TreeArgs, cfg: &config::Config, painter: &Painter) -> Result<(
     }
     let ignore_set = ignore_builder.build()?;
 
-    let filter = FileFilter::with_ignore(include, exclude, &[], &[], ignore_set)?;
+    let filter = FileFilter::with_ignore(include, exclude, &[], &[], ignore_set, false)?;
     let entries = archive::list_entries(archive, compression, &filter)?;
 
     let eff_depth = if depth > 0 { depth } else { cfg.display.tree_depth };

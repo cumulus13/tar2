@@ -154,7 +154,7 @@ pub fn create(opts: CreateOptions) -> Result<usize> {
                     .unwrap_or(entry.path());
 
                 if rel == Path::new("") { continue; }
-                if !opts.filter.matches(entry.path()) { continue; }
+                if !opts.filter.matches_for_pack(entry.path(), entry.file_type().is_dir()) { continue; }
 
                 let archive_path = apply_transform(rel, opts.transform);
 
@@ -176,7 +176,7 @@ pub fn create(opts: CreateOptions) -> Result<usize> {
                 count += 1;
             }
         } else if source.exists() {
-            if !opts.filter.matches(&source) { continue; }
+            if !opts.filter.matches_for_pack(&source, false) { continue; }
             let fname = source.file_name().unwrap_or(source.as_os_str());
             let archive_path = apply_transform(Path::new(fname), opts.transform);
 
@@ -405,7 +405,7 @@ pub fn update_archive(archive: &Path, compression: Compression, sources: &[PathB
         for entry in WalkDir::new(source).follow_links(false) {
             let entry = entry?;
             if entry.file_type().is_dir() { continue; }
-            if !filter.matches(entry.path()) { continue; }
+            if !filter.matches_for_pack(entry.path(), false) { continue; }
 
             let rel = entry.path().strip_prefix(source).unwrap_or(entry.path()).to_path_buf();
             let disk_mtime = entry.metadata()?.modified().ok()

@@ -11,6 +11,7 @@ pub struct FileFilter {
     exclude_regex: Vec<Regex>,
     include_regex: Vec<Regex>,
     ignore: Option<IgnoreSet>,
+    keep_ignore_files: bool,
 }
 
 impl FileFilter {
@@ -20,7 +21,7 @@ impl FileFilter {
         include_re: &[String],
         exclude_re: &[String],
     ) -> Result<Self> {
-        Self::with_ignore(include_globs, exclude_globs, include_re, exclude_re, None)
+        Self::with_ignore(include_globs, exclude_globs, include_re, exclude_re, None, false)
     }
 
     pub fn with_ignore(
@@ -29,6 +30,7 @@ impl FileFilter {
         include_re: &[String],
         exclude_re: &[String],
         ignore: Option<IgnoreSet>,
+        keep_ignore_files: bool,
     ) -> Result<Self> {
         let mut ig = Vec::new();
         for p in include_globs {
@@ -46,7 +48,7 @@ impl FileFilter {
         for r in exclude_re {
             eregex.push(Regex::new(r).map_err(|e| anyhow::anyhow!("Invalid regex '{}': {}", r, e))?);
         }
-        Ok(Self { include_globs: ig, exclude_globs: eg, exclude_regex: eregex, include_regex: iregex, ignore })
+        Ok(Self { include_globs: ig, exclude_globs: eg, exclude_regex: eregex, include_regex: iregex, ignore, keep_ignore_files })
     }
 
     /// Returns the ignore files that were actually loaded (if any), so callers
@@ -61,6 +63,32 @@ impl FileFilter {
     /// entry's actual type, since the path won't exist on disk yet.
     pub fn matches(&self, path: &Path) -> bool {
         self.matches_typed(path, path.is_dir())
+    }
+
+    /// Like `matches`, but for packing (create/append/update) only: also
+    /// drops the `.gitignore`/`.dockerignore`/etc. files that were actually
+    /// used to filter this run, unless `--keep-ignore-files` was passed.
+    /// Their job is done once filtering has happened -- by default they
+    /// shouldn't end up shipped inside the archive (mirrors e.g. `npm pack`,
+    /// which never includes `.npmignore`/`.gitignore` in the published
+    /// tarball). Not used for extract/list: an ignore file that happens to
+    /// already be inside an existing archive should extract/list normally.
+    pub fn matches_for_pack(&self, path: &Path, is_dir: bool) -> bool {
+        if !self.keep_ignore_files && !is_dir {
+            let sources = self.ignore_sources();
+            if !sources.is_empty() {
+                let hit = path.canonicalize().ok();
+                let is_source = sources.iter().any(|s| {
+                    s == path || hit.as_deref().is_some_and(|h| {
+                        s.canonicalize().map(|sc| sc == h).unwrap_or(false)
+                    })
+                });
+                if is_source {
+                    return false;
+                }
+            }
+        }
+        self.matches_typed(path, is_dir)
     }
 
     pub fn matches_typed(&self, path: &Path, is_dir: bool) -> bool {

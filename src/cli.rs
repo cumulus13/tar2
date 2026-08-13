@@ -109,6 +109,15 @@ pub struct Cli {
     #[arg(long = "no-auto-ignore")]
     pub no_auto_ignore: bool,
 
+    /// Include the .gitignore/.dockerignore/etc. files that were used to
+    /// filter this archive inside the packed archive itself (default: they
+    /// are left out once they've done their job, like `npm pack` leaves out
+    /// .npmignore). Turn this on if the resulting archive may later be
+    /// unpacked and re-filtered by another tool (plain tar, 7-Zip, WinRAR,
+    /// etc.) that should see the same rules.
+    #[arg(long = "keep-ignore-files")]
+    pub keep_ignore_files: bool,
+
     /// Compression level (1-9 or 1-22 for zstd)
     #[arg(long, value_name = "LEVEL")]
     pub compression_level: Option<u32>,

@@ -208,6 +208,7 @@ Compression is **auto-detected** from the archive filename if no flag is given.
 | `--exclude-from FILE` | Read exclude patterns from file |
 | `--ignore-file FILE` | Load exclusion patterns from an ignore file (gitignore syntax, repeatable) |
 | `--no-auto-ignore` | Disable auto-detection of standard ignore files |
+| `--keep-ignore-files` | Include the loaded ignore file(s) inside the packed archive (default: left out) |
 
 ### 🙈 Ignore files
 
@@ -235,6 +236,21 @@ To turn this off entirely, pass `--no-auto-ignore`. To load extra patterns from
 a file that isn't one of the standard names, pass `--ignore-file path/to/file`
 (repeatable). Ignore rules combine with `--exclude`/`--include` — an ignored
 path is dropped regardless of other filters.
+
+**Scope:** ignore files are only ever read from disk, never from inside an
+archive. For `-c`/`-r`/`-u` (pack/append/update) they're read from your
+current directory and directly inside each source directory you're packing.
+For `-x`/`-t`/`tree` (extract/list/tree) they're read from your current
+directory only — a `.gitignore` that happens to be *inside* the archive you're
+extracting is not consulted; it extracts like any other member.
+
+**The ignore file itself is left out of the pack.** Once `.gitignore` (or
+whichever file matched) has done its job filtering, it's excluded from the
+resulting archive by default — the same way `npm pack` never ships
+`.npmignore`/`.gitignore` in the published tarball. If you want it included
+anyway (e.g. the archive will later be unpacked and re-filtered by plain
+`tar`, 7-Zip, WinRAR, or some other tool that should see the same rules),
+pass `--keep-ignore-files`.
 
 ```bash
 # Pack a project dir, respecting its .gitignore/.dockerignore automatically
