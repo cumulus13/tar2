@@ -1,5 +1,6 @@
 use clap::{ArgAction, Parser, Subcommand};
 use std::path::PathBuf;
+use clap_color_help::default_styles;
 
 /// tar2 — A feature-rich tar replacement with tree view, colors, emoji, and cross-platform config.
 #[derive(Parser, Debug)]
@@ -9,6 +10,7 @@ use std::path::PathBuf;
     author = "Hadi Cahyadi <cumulus13@gmail.com>",
     version,
     about = "tar2 — archive tool with tree view, colors, emoji & smart config",
+    styles = default_styles(),
     long_about = None,
     after_help = "EXAMPLES:\n  tar -czf archive.tar.gz dir/          Create gzip-compressed archive\n  tar -xzf archive.tar.gz -C /tmp/      Extract to /tmp/\n  tar -tf archive.tar.gz                List contents\n  tar tree archive.tar.gz               Show tree view\n  tar config get colors.dir             Get a config value\n  tar config set colors.dir '#FF6600'   Set a config value"
 )]
